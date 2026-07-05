@@ -1,0 +1,14 @@
+.DS_Store
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+
+# Go
+*.test
+coverage.out
