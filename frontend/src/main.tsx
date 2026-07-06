@@ -32,19 +32,50 @@ type SeoReport = {
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
+type DeviceIdentity = {
+  fingerprint: string;
+  details: Record<string, string | number | boolean | null>;
+};
+
+function getDeviceIdentity(): DeviceIdentity {
+  const screenSize = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+  const details = {
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+    languages: navigator.languages?.join(",") ?? "",
+    platform: navigator.platform,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    screen: screenSize,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+    deviceMemory: "deviceMemory" in navigator ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? null : null,
+    touchPoints: navigator.maxTouchPoints ?? 0,
+    cookiesEnabled: navigator.cookieEnabled,
+  };
+
+  return {
+    fingerprint: Object.values(details).join("|"),
+    details,
+  };
+}
+
 function App() {
   const [url, setUrl] = React.useState("");
   const [reports, setReports] = React.useState<SeoReport[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isCreating, setIsCreating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const deviceIdentity = React.useMemo(() => getDeviceIdentity(), []);
 
   const loadReports = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/seo-reports`);
+      const params = new URLSearchParams({
+        device_fingerprint: deviceIdentity.fingerprint,
+      });
+      const response = await fetch(`${apiBaseUrl}/seo-reports?${params.toString()}`);
       const payload = await response.json();
 
       if (!response.ok) {
@@ -57,7 +88,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [deviceIdentity.fingerprint]);
 
   React.useEffect(() => {
     loadReports();
@@ -74,7 +105,11 @@ function App() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({
+          url,
+          device_fingerprint: deviceIdentity.fingerprint,
+          device_details: deviceIdentity.details,
+        }),
       });
       const payload = await response.json();
 

@@ -11,14 +11,19 @@ func EnsureSchema(db *sql.DB) error {
   summary text,
   score integer,
   report jsonb not null default '{}'::jsonb,
+  user_id text,
+  device_details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 )`,
 		`alter table public.seo_reports add column if not exists title text`,
 		`alter table public.seo_reports add column if not exists summary text`,
 		`alter table public.seo_reports add column if not exists score integer`,
 		`alter table public.seo_reports add column if not exists report jsonb not null default '{}'::jsonb`,
+		`alter table public.seo_reports add column if not exists user_id text`,
+		`alter table public.seo_reports add column if not exists device_details jsonb not null default '{}'::jsonb`,
 		`alter table public.seo_reports add column if not exists created_at timestamptz not null default now()`,
 		`create index if not exists seo_reports_created_at_idx on public.seo_reports (created_at desc)`,
+		`create index if not exists seo_reports_user_created_at_idx on public.seo_reports (user_id, created_at desc)`,
 	}
 
 	for _, statement := range statements {

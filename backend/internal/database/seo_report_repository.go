@@ -9,7 +9,7 @@ import (
 
 type SeoReportRepository interface {
 	Create(ctx context.Context, report *models.SeoReport) error
-	ListRecent(ctx context.Context, limit int) ([]models.SeoReport, error)
+	ListRecentByUser(ctx context.Context, userID string, limit int) ([]models.SeoReport, error)
 }
 
 type SQLSeoReportRepository struct {
@@ -22,8 +22,8 @@ func NewSQLSeoReportRepository(db *sql.DB) *SQLSeoReportRepository {
 
 func (repository *SQLSeoReportRepository) Create(ctx context.Context, report *models.SeoReport) error {
 	query := `
-insert into seo_reports (url, title, summary, score, report)
-values ($1, $2, $3, $4, $5)
+insert into seo_reports (url, title, summary, score, report, user_id, device_details)
+values ($1, $2, $3, $4, $5, $6, $7)
 returning id, created_at
 `
 
@@ -35,10 +35,12 @@ returning id, created_at
 		report.Summary,
 		report.Score,
 		report.Report,
+		report.UserID,
+		report.DeviceDetails,
 	).Scan(&report.ID, &report.CreatedAt)
 }
 
-func (repository *SQLSeoReportRepository) ListRecent(ctx context.Context, limit int) ([]models.SeoReport, error) {
+func (repository *SQLSeoReportRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]models.SeoReport, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -46,11 +48,13 @@ func (repository *SQLSeoReportRepository) ListRecent(ctx context.Context, limit 
 	rows, err := repository.db.QueryContext(
 		ctx,
 		`
-select id, url, title, summary, score, report, created_at
+select id, user_id, url, title, summary, score, report, device_details, created_at
 from seo_reports
+where user_id = $1
 order by created_at desc
-limit $1
+limit $2
 `,
+		userID,
 		limit,
 	)
 	if err != nil {
@@ -64,11 +68,13 @@ limit $1
 		var rawReport []byte
 		if err := rows.Scan(
 			&report.ID,
+			&report.UserID,
 			&report.URL,
 			&report.Title,
 			&report.Summary,
 			&report.Score,
 			&rawReport,
+			&report.DeviceDetails,
 			&report.CreatedAt,
 		); err != nil {
 			return nil, err

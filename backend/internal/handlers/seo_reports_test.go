@@ -15,6 +15,7 @@ import (
 
 type fakeRepository struct {
 	created *models.SeoReport
+	userID  string
 	list    []models.SeoReport
 	err     error
 }
@@ -28,11 +29,12 @@ func (repository *fakeRepository) Create(ctx context.Context, report *models.Seo
 	return nil
 }
 
-func (repository *fakeRepository) ListRecent(ctx context.Context, limit int) ([]models.SeoReport, error) {
+func (repository *fakeRepository) ListRecentByUser(ctx context.Context, userID string, limit int) ([]models.SeoReport, error) {
 	if repository.err != nil {
 		return nil, repository.err
 	}
 
+	repository.userID = userID
 	return repository.list, nil
 }
 
@@ -66,7 +68,7 @@ func TestCreateSeoReport(t *testing.T) {
 		},
 	})
 
-	requestBody := bytes.NewBufferString(`{"url":"https://example.com"}`)
+	requestBody := bytes.NewBufferString(`{"url":"https://example.com","device_fingerprint":"test-device","device_details":{"platform":"test"}}`)
 	request := httptest.NewRequest(http.MethodPost, "/seo-reports", requestBody)
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
@@ -85,8 +87,34 @@ func TestCreateSeoReport(t *testing.T) {
 		t.Fatalf("expected stored URL, got %q", repository.created.URL)
 	}
 
+	if repository.created.UserID == "" {
+		t.Fatal("expected stored user ID")
+	}
+
+	if string(repository.created.DeviceDetails) != `{"platform":"test"}` {
+		t.Fatalf("expected stored device details, got %s", repository.created.DeviceDetails)
+	}
+
 	if string(repository.created.Report) != string(raw) {
 		t.Fatalf("expected stored raw report %s, got %s", raw, repository.created.Report)
+	}
+}
+
+func TestCreateSeoReportRequiresFingerprint(t *testing.T) {
+	router := http.NewServeMux()
+	RegisterRoutes(router, Dependencies{
+		Reports:   &fakeRepository{},
+		Generator: fakeGenerator{},
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/seo-reports", bytes.NewBufferString(`{"url":"https://example.com"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
 	}
 }
 
@@ -99,7 +127,7 @@ func TestCreateSeoReportReturnsBadRequestForGeneratorError(t *testing.T) {
 		},
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/seo-reports", bytes.NewBufferString(`{"url":"bad"}`))
+	request := httptest.NewRequest(http.MethodPost, "/seo-reports", bytes.NewBufferString(`{"url":"bad","device_fingerprint":"test-device"}`))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 
@@ -111,17 +139,18 @@ func TestCreateSeoReportReturnsBadRequestForGeneratorError(t *testing.T) {
 }
 
 func TestListSeoReports(t *testing.T) {
+	repository := &fakeRepository{
+		list: []models.SeoReport{
+			{URL: "https://example.com", Title: "Audit", Score: 90},
+		},
+	}
 	router := http.NewServeMux()
 	RegisterRoutes(router, Dependencies{
-		Reports: &fakeRepository{
-			list: []models.SeoReport{
-				{URL: "https://example.com", Title: "Audit", Score: 90},
-			},
-		},
+		Reports:   repository,
 		Generator: fakeGenerator{},
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/seo-reports", nil)
+	request := httptest.NewRequest(http.MethodGet, "/seo-reports?device_fingerprint=test-device", nil)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -137,5 +166,26 @@ func TestListSeoReports(t *testing.T) {
 
 	if len(payload) != 1 {
 		t.Fatalf("expected 1 report, got %d", len(payload))
+	}
+
+	if repository.userID == "" {
+		t.Fatal("expected repository to receive user ID")
+	}
+}
+
+func TestListSeoReportsRequiresFingerprint(t *testing.T) {
+	router := http.NewServeMux()
+	RegisterRoutes(router, Dependencies{
+		Reports:   &fakeRepository{},
+		Generator: fakeGenerator{},
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/seo-reports", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, response.Code)
 	}
 }
