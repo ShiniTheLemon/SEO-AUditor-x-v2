@@ -1,11 +1,17 @@
 # AI SEO Auditor
 
-This repo contains planning and implementation notes for an AI SEO Auditor.
+An AI-powered SEO audit tool. Users submit a website URL, the backend generates an audit report with OpenAI, stores it in Supabase (PostgreSQL), and the frontend displays the latest reports.
 
-The project is split into two markdown files:
+## Structure
 
-- [FRONTEND.md](FRONTEND.md): Next.js static export, React, Tailwind CSS, Supabase client, URL input UI, and dashboard display.
-- [BACKEND.md](BACKEND.md): Go / Gin / GORM API, OpenAI API call, report formatting, Supabase PostgreSQL storage.
+- `frontend/`: React + TypeScript SPA built with Vite. URL input UI and report dashboard.
+- `backend/`: Go HTTP API (net/http). Config, PostgreSQL/Supabase storage, OpenAI report generation, and device-fingerprint report scoping.
+
+## API
+
+- `GET /health` — health check.
+- `POST /seo-reports` — create an audit report for a URL.
+- `GET /seo-reports` — list latest reports (scoped by device fingerprint).
 
 ## Target Flow
 
@@ -17,3 +23,22 @@ The project is split into two markdown files:
 6. The frontend fetches and displays the latest reports.
 
 Supabase is used only as the database layer. It should not own the audit-generation, formatting, or report-composition logic.
+
+## Development
+
+Backend (requires `.env` with `DATABASE_URL`):
+
+```sh
+cd backend
+go run ./cmd/api
+```
+
+Frontend:
+
+```sh
+cd frontend
+npm install
+npm run dev
+```
+
+Run backend tests with `go test ./...` in `backend/`.

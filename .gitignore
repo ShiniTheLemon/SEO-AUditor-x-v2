@@ -1,5 +1,9 @@
 .DS_Store
 
+# Local planning notes
+FRONTEND.md
+BACKEND.md
+
 # Local environment files
 .env
 .env.*
